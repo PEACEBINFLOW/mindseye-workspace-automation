@@ -1,0 +1,66 @@
+name: Gmail Autoreply via MindsEye
+id: wf_gmail_autoreply
+trigger:
+  source: gmail
+  event: labeled_thread
+  filter:
+    label: "MindsEye-Autoreply"
+
+description: |
+  For emails labeled "MindsEye-Autoreply", generate a contextual,
+  human-sounding reply using Gemini and send it from the user's account.
+
+steps:
+  - id: fetch_threads
+    component: gmail
+    action: list_threads_with_label
+    params:
+      label: "MindsEye-Autoreply"
+
+  - id: extract_latest_message
+    component: gmail
+    action: get_latest_message
+    params: {}
+
+  - id: build_prompt
+    component: local
+    action: build_autoreply_prompt
+    params:
+      style: "polite_helpful"
+
+  - id: call_gemini
+    component: gemini
+    action: generate_reply
+    params:
+      model: "GEMINI_MODEL_ID"
+
+  - id: send_reply
+    component: gmail
+    action: send_message
+    params:
+      from: "current_user"
+      reply_to_thread: true
+
+  - id: cleanup_label
+    component: gmail
+    action: remove_label_from_thread
+    params:
+      label: "MindsEye-Autoreply"
+
+  - id: log_run
+    component: ledger
+    action: append_run
+    params:
+      run_context: "gmail"
+      node_hint: "email_autoreply"
+
+ports:
+  - from: gmail.thread
+    to: gemini.prompt
+    type: email_body
+  - from: gemini.response
+    to: gmail.reply
+    type: email_text
+  - from: gmail.thread
+    to: ledger.runs
+    type: run_metadata
