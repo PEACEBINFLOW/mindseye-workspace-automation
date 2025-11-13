@@ -1,0 +1,55 @@
+name: Drive Summarizer via MindsEye
+id: wf_drive_summarizer
+trigger:
+  source: drive
+  event: time_based
+  filter:
+    schedule: "daily"
+
+description: |
+  On a daily schedule, fetch files from a configured Drive folder,
+  summarize recent changes using Gemini, and optionally write a
+  summary document and log a run.
+
+steps:
+  - id: list_files
+    component: drive
+    action: list_files_in_folder
+    params:
+      folder_id: "FOLDER_ID_PLACEHOLDER"
+
+  - id: build_summary_prompt
+    component: local
+    action: build_drive_summary_prompt
+    params:
+      max_files: 20
+
+  - id: call_gemini
+    component: gemini
+    action: generate_summary
+    params:
+      model: "GEMINI_MODEL_ID"
+
+  - id: write_summary_doc
+    component: docs
+    action: create_or_update_summary_doc
+    params:
+      title: "Daily Drive Summary"
+
+  - id: log_run
+    component: ledger
+    action: append_run
+    params:
+      run_context: "drive"
+      node_hint: "drive_summary"
+
+ports:
+  - from: drive.files
+    to: gemini.prompt
+    type: file_list
+  - from: gemini.response
+    to: docs.body
+    type: summary_text
+  - from: docs.doc_id
+    to: ledger.runs
+    type: run_metadata
