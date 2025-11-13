@@ -1,0 +1,53 @@
+name: Docs Reviewer via MindsEye
+id: wf_docs_reviewer
+trigger:
+  source: docs
+  event: manual_menu_click
+  filter:
+    menu_item: "Review with MindsEye"
+
+description: |
+  When the user selects "Review with MindsEye" in a Google Doc,
+  the system sends the document content to Gemini and inserts
+  suggestions as comments.
+
+steps:
+  - id: get_doc_content
+    component: docs
+    action: fetch_body_text
+    params: {}
+
+  - id: build_review_prompt
+    component: local
+    action: build_review_prompt
+    params:
+      focus: "clarity,structure,tone"
+
+  - id: call_gemini
+    component: gemini
+    action: generate_review
+    params:
+      model: "GEMINI_MODEL_ID"
+
+  - id: insert_comments
+    component: docs
+    action: add_comments_from_review
+    params: {}
+
+  - id: log_run
+    component: ledger
+    action: append_run
+    params:
+      run_context: "docs"
+      node_hint: "doc_review"
+
+ports:
+  - from: docs.body
+    to: gemini.prompt
+    type: doc_text
+  - from: gemini.response
+    to: docs.comments
+    type: suggestions
+  - from: docs.doc_id
+    to: ledger.runs
+    type: run_metadata
